@@ -1,27 +1,36 @@
 #include "HttpConfigServer.h"
 
 HttpConfigServer::HttpConfigServer(int port,
-  std::function<void(const String&, const String&, const String&, const String&, const String&, const String&, const String&)> credCb,
-  std::function<void()> rstCredCb)
-  : server(port),
-    saveCallback(credCb),
-    resetCredentialsCallback(rstCredCb) {}
+                                   std::function<void(const char *, const char *, const char *, const char *,
+                                                      const char *, const char *, const char *)>
+                                       credCb,
+                                   std::function<void()> rstCredCb)
+    : server(port),
+      saveCallback(credCb),
+      resetCredentialsCallback(rstCredCb) {}
 
-
-
-void HttpConfigServer::begin() {
-    server.on("/", HTTP_GET, [this]() { handleRoot(); } );
-    server.on("/send", HTTP_GET, [this]() { handleSendCommand(); } );
-    server.on("/config", HTTP_GET, [this]() { handleConfigPage(); } );
-    server.on("/config", HTTP_POST,[this]() { handleSaveConfig(); }  );
-    server.on("/status", HTTP_GET, [this]() { handleStatus(); });
-    server.onNotFound([this]() {  handleNotFound(); });    
-    server.begin();
-    Serial.println("HTTP Started");
+void HttpConfigServer::begin()
+{
+  Serial.println("Starting HTTP server...");
+  server.on("/", HTTP_GET, [this]()
+            { handleRoot(); });
+  server.on("/send", HTTP_GET, [this]()
+            { handleSendCommand(); });
+  server.on("/config", HTTP_GET, [this]()
+            { handleConfigPage(); });
+  server.on("/config", HTTP_POST, [this]()
+            { handleSaveConfig(); });
+  server.on("/status", HTTP_GET, [this]()
+            { handleStatus(); });
+  server.onNotFound([this]()
+                    { handleNotFound(); });
+  server.begin();
+  Serial.println("HTTP server started");
 }
 
-void HttpConfigServer::loop() {
-    server.handleClient();
+void HttpConfigServer::loop()
+{
+  server.handleClient();
 }
 
 void HttpConfigServer::handleSendCommand()
@@ -30,13 +39,13 @@ void HttpConfigServer::handleSendCommand()
   {
     return server.requestAuthentication();
   }
- String command = server.arg("command");
-  if(command == "reset_wifi")
+  String command = server.arg("command");
+  if (command == "reset_wifi")
   {
     resetCredentialsCallback();
   }
 
-    if (!command.length())
+  if (!command.length())
   {
     StaticJsonDocument<192> doc;
     doc["error"] = "Empty command";
@@ -55,8 +64,6 @@ void HttpConfigServer::handleSendCommand()
     server.send(200, "application/json", jsonOut);
     return;
   }
-
-
 
   loraSerial->print(command);
   String response = "";
@@ -80,8 +87,9 @@ void HttpConfigServer::handleSendCommand()
   server.send(200, "application/json", jsonOut);
 }
 
-void HttpConfigServer::handleRoot() {
-    
+void HttpConfigServer::handleRoot()
+{
+
   if (!isAuthorized())
   {
     return server.requestAuthentication();
@@ -242,9 +250,11 @@ void HttpConfigServer::handleRoot() {
   server.send(200, "text/html", html);
 }
 
-void HttpConfigServer::handleConfigPage() {
-  if (!isAuthorized()) {
-      return server.requestAuthentication();
+void HttpConfigServer::handleConfigPage()
+{
+  if (!isAuthorized())
+  {
+    return server.requestAuthentication();
   }
 
   String html = R"=====(<!DOCTYPE html>
@@ -322,7 +332,8 @@ void HttpConfigServer::handleConfigPage() {
   server.send(200, "text/html", html);
 }
 
-void HttpConfigServer::handleSaveConfig() {
+void HttpConfigServer::handleSaveConfig()
+{
   if (!server.authenticate(authUser.c_str(), authPass.c_str()))
   {
     return server.requestAuthentication();
@@ -344,30 +355,39 @@ void HttpConfigServer::handleSaveConfig() {
   String newAuthPass = server.hasArg("auth_pass") ? server.arg("auth_pass") : authPass;
 
   // EEPROM сохранение
-  saveCallback(mqtt_ip, mqtt_port,
-                     mqtt_user, mqtt_pass, client_id,
-                     newAuthUser, newAuthPass);
+  saveCallback(
+      server.arg("mqtt_ip").c_str(),
+      server.arg("mqtt_port").c_str(),
+      server.arg("mqtt_user").c_str(),
+      server.arg("mqtt_pass").c_str(),
+      server.arg("client_id").c_str(),
+      newAuthUser.c_str(),
+      newAuthPass.c_str());
 
   server.send(200, "application/json", "{\"status\":\"saved\"}");
 }
 
-void HttpConfigServer::handleNotFound() {
-    server.send(404, "text/plain", "404 Not Found");
+void HttpConfigServer::handleNotFound()
+{
+  server.send(404, "text/plain", "404 Not Found");
 }
 
-void HttpConfigServer::handleStatus() {
-      StaticJsonDocument<64> doc;
-      doc["mqtt"] = mqttConnected ? "connected" : "disconnected";
-      String jsonOut;
-      serializeJson(doc, jsonOut);      
-      server.send(200, "application/json", jsonOut);
+void HttpConfigServer::handleStatus()
+{
+  StaticJsonDocument<64> doc;
+  doc["mqtt"] = mqttConnected ? "connected" : "disconnected";
+  String jsonOut;
+  serializeJson(doc, jsonOut);
+  server.send(200, "application/json", jsonOut);
 }
 
-void HttpConfigServer::setMqttConnected(bool state) {
-    mqttConnected = state;
+void HttpConfigServer::setMqttConnected(bool state)
+{
+  mqttConnected = state;
 }
 
-void HttpConfigServer::setLoraSerial(SoftwareSerial*  serial) {
+void HttpConfigServer::setLoraSerial(SoftwareSerial *serial)
+{
   loraSerial = serial;
 }
 
@@ -380,20 +400,22 @@ bool HttpConfigServer::isAuthorized()
   return server.authenticate(authUser.c_str(), authPass.c_str());
 }
 
-void HttpConfigServer::setAuth(String user, String pwd) {
+void HttpConfigServer::setAuth(String user, String pwd)
+{
   authUser = user;
   authPass = pwd;
 }
 
-void HttpConfigServer::setIsSerialDebug(bool isDebug) {
+void HttpConfigServer::setIsSerialDebug(bool isDebug)
+{
   isSerialDebug = isDebug;
 }
 
-
-void HttpConfigServer::setMQTT(String mqtt_ip, String mqtt_port, String mqtt_user, String mqtt_pass, String client_id) {
-     _mqtt_ip = mqtt_ip;
-     _mqtt_port = mqtt_port;
-     _mqtt_user = mqtt_user;
-     _mqtt_pass = mqtt_pass;
-     _client_id = client_id;
+void HttpConfigServer::setMQTT(String mqtt_ip, String mqtt_port, String mqtt_user, String mqtt_pass, String client_id)
+{
+  _mqtt_ip = mqtt_ip;
+  _mqtt_port = mqtt_port;
+  _mqtt_user = mqtt_user;
+  _mqtt_pass = mqtt_pass;
+  _client_id = client_id;
 }

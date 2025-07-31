@@ -18,10 +18,16 @@ HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-String WIFI_SSID, WIFI_PASSWORD;
-String MQTT_SERVER, MQTT_USER, MQTT_PASS, MQTT_CLIENT_ID;
+char WIFI_SSID[64] = {0};
+char WIFI_PASSWORD[64] = {0};
+char MQTT_SERVER[64] = {0};
+char MQTT_USER[64] = {0};
+char MQTT_PASS[64] = {0};
+char MQTT_CLIENT_ID[64] = {0};
+char authUser[32] = {0};
+char authPass[32] = {0};
+
 int MQTT_PORT = 1883;
-String authUser, authPass;
 
 // Прототипы
 // prototypes.h
@@ -51,31 +57,23 @@ void setup()
   delay(1000);
 
   pinMode(LED_BUILTIN, OUTPUT);
-  Serial.println("=== Let's  start===");
-
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(1000);
-
-  digitalWrite(LED_BUILTIN, HIGH);
+  Serial.println("=== Let's start ===");
 
   EEPROM.begin(EEPROM_SIZE);
 
-  Serial.println("--------------------");
-
-  String WIFI_SSID = readStringFromEEPROM(OFFSET_WIFI_SSID);
-  String WIFI_PASSWORD = readStringFromEEPROM(OFFSET_WIFI_PASS);
-  // WiFi.setSleepMode(WIFI_LIGHT_SLEEP);
-  // WiFi.setOutputPower(12.0); // Можно зменшити піковий струм - за рахунок потужності 12 Dbm
+  // Чтение конфигурации
+  readStringFromEEPROM(OFFSET_WIFI_SSID, WIFI_SSID, sizeof(WIFI_SSID));
+  readStringFromEEPROM(OFFSET_WIFI_PASS, WIFI_PASSWORD, sizeof(WIFI_PASSWORD));
   loadAuthFromEEPROM();
 
-  if (!WIFI_SSID.length())
+  if (strlen(WIFI_SSID) == 0)
   {
-    Serial.println("📡 SSID not found Wireless Connection Manager will start");
+    Serial.println("📡 SSID not found. Starting Wireless Connection Manager");
     initLogin();
   }
   else
   {
-    connectToAP(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str(), true);
+    connectToAP(WIFI_SSID, WIFI_PASSWORD, true);
   }
 
   configServer.setIsSerialDebug(isSerialDebug);
@@ -105,7 +103,7 @@ void setup()
   Serial.print("MQTT IP: ");
   Serial.println(MQTT_SERVER);
 
-  mqttClient.setServer(MQTT_SERVER.c_str(), (uint16_t)MQTT_PORT);
+  mqttClient.setServer(MQTT_SERVER, (uint16_t)MQTT_PORT);
   mqttClient.setCallback(callback);
   Serial.print("MQTT PORT: ");
   Serial.println(MQTT_PORT);
@@ -255,17 +253,34 @@ void saveStringToEEPROM(int addr, const String &value)
   EEPROM.commit();
 }
 
-String readStringFromEEPROM(int addr)
+void readStringFromEEPROM(int addr, char *buffer, size_t maxLen)
 {
-  char buffer[64]; // максимум 63 символа + '\0'
   int i = 0;
   char ch;
-  while ((ch = EEPROM.read(addr + i)) != '\0' && i < 63)
+  while ((ch = EEPROM.read(addr + i)) != '\0' && i < maxLen - 1)
   {
     buffer[i++] = ch;
   }
   buffer[i] = '\0';
-  return String(buffer);
+}
+
+// Запись char[] в EEPROM
+void saveStringToEEPROM(int addr, const char *value)
+{
+  Serial.print("💾 Save to EEPROM @");
+  Serial.print(addr);
+  Serial.print(": [");
+  Serial.print(value);
+  Serial.println("]");
+
+  int i = 0;
+  while (value[i] != '\0' && i < 63)
+  {
+    EEPROM.write(addr + i, value[i]);
+    i++;
+  }
+  EEPROM.write(addr + i, '\0');
+  EEPROM.commit();
 }
 
 void initLogin()
@@ -351,49 +366,56 @@ void loadAuthFromEEPROM()
 {
   EEPROM.begin(512);
 
-  authUser = readStringFromEEPROM(OFFSET_AUTH_USER);
-  authPass = readStringFromEEPROM(OFFSET_AUTH_PASS);
+  readStringFromEEPROM(OFFSET_AUTH_USER, authUser, sizeof(authUser));
+  readStringFromEEPROM(OFFSET_AUTH_PASS, authPass, sizeof(authPass));
 
-  bool userEmpty = authUser.isEmpty() || !isAscii(authUser[0]);
-  bool passEmpty = authPass.isEmpty() || !isAscii(authPass[0]);
-
-  if (userEmpty)
+  if (strlen(authUser) == 0 || !isAscii(authUser[0]))
   {
-    authUser = DEFAULT_USER;
-    // Serial.println("⚠️ Пароль в EEPROM не найден — используем логин по умолчанию");
+    strncpy(authUser, DEFAULT_USER, sizeof(authUser));
   }
-  if (passEmpty)
+  if (strlen(authPass) == 0 || !isAscii(authPass[0]))
   {
-    authPass = DEFAULT_PASS;
-    // Serial.println("⚠️ Пароль в EEPROM не найден — используем пароль по умолчанию");
+    strncpy(authPass, DEFAULT_PASS, sizeof(authPass));
   }
 
   Serial.println("🔐 Авторизация:");
-  Serial.println("User: [" + authUser + "]");
-  Serial.println("Pass: [" + authPass + "]"); // Только для отладки
+  Serial.print("User: [");
+  Serial.print(authUser);
+  Serial.println("]");
 
-  configServer.setAuth(authUser, authPass);
+  // Временное решение для совместимости:
+  configServer.setAuth(String(authUser), String(authPass));
 }
 
 void loadConfigFromEEPROM()
 {
   EEPROM.begin(512);
-  WIFI_SSID = readStringFromEEPROM(OFFSET_WIFI_SSID);
-  WIFI_PASSWORD = readStringFromEEPROM(OFFSET_WIFI_PASS);
-  MQTT_SERVER = readStringFromEEPROM(OFFSET_MQTT_SERVER);
-  MQTT_PORT = readStringFromEEPROM(OFFSET_MQTT_PORT).toInt(); // Храним как строку
-  MQTT_USER = readStringFromEEPROM(OFFSET_MQTT_USER);
-  MQTT_PASS = readStringFromEEPROM(OFFSET_MQTT_PASS);
-  MQTT_CLIENT_ID = readStringFromEEPROM(OFFSET_MQTT_CLIENT_ID);
 
-  // раздаем всем нуждающимся
-  configServer.setMQTT(MQTT_SERVER, String(MQTT_PORT), MQTT_USER, MQTT_PASS, MQTT_CLIENT_ID);
+  readStringFromEEPROM(OFFSET_WIFI_SSID, WIFI_SSID, sizeof(WIFI_SSID));
+  readStringFromEEPROM(OFFSET_WIFI_PASS, WIFI_PASSWORD, sizeof(WIFI_PASSWORD));
+  readStringFromEEPROM(OFFSET_MQTT_SERVER, MQTT_SERVER, sizeof(MQTT_SERVER));
+
+  char portStr[6] = {0};
+  readStringFromEEPROM(OFFSET_MQTT_PORT, portStr, sizeof(portStr));
+  MQTT_PORT = atoi(portStr);
+
+  readStringFromEEPROM(OFFSET_MQTT_USER, MQTT_USER, sizeof(MQTT_USER));
+  readStringFromEEPROM(OFFSET_MQTT_PASS, MQTT_PASS, sizeof(MQTT_PASS));
+  readStringFromEEPROM(OFFSET_MQTT_CLIENT_ID, MQTT_CLIENT_ID, sizeof(MQTT_CLIENT_ID));
+
+  // Временное решение для совместимости:
+  configServer.setMQTT(
+      String(MQTT_SERVER),
+      String(MQTT_PORT),
+      String(MQTT_USER),
+      String(MQTT_PASS),
+      String(MQTT_CLIENT_ID));
 }
 
-void saveConfigToEEPROM(const String &mqtt_ip, const String &mqtt_port,
-                        const String &user, const String &mqtt_pass,
-                        const String &client_id,
-                        const String &auth_user, const String &auth_pass)
+void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
+                        const char *user, const char *mqtt_pass,
+                        const char *client_id,
+                        const char *auth_user, const char *auth_pass)
 {
 
   saveStringToEEPROM(OFFSET_MQTT_SERVER, mqtt_ip);
@@ -401,27 +423,27 @@ void saveConfigToEEPROM(const String &mqtt_ip, const String &mqtt_port,
   saveStringToEEPROM(OFFSET_MQTT_USER, user);
   saveStringToEEPROM(OFFSET_MQTT_PASS, mqtt_pass);
   saveStringToEEPROM(OFFSET_MQTT_CLIENT_ID, client_id);
-  if (!auth_user.isEmpty() && isAscii(auth_user[0]))
+
+  if (auth_user && strlen(auth_user) > 0 && isAscii(auth_user[0]))
   {
     saveStringToEEPROM(OFFSET_AUTH_USER, auth_user);
     Serial.println("✅ Will be save to EEPROM with auth_user");
   }
-  if (!auth_pass.isEmpty() && isAscii(auth_pass[0]))
+
+  if (auth_pass && strlen(auth_pass) > 0 && isAscii(auth_pass[0]))
   {
     saveStringToEEPROM(OFFSET_AUTH_PASS, auth_pass);
-
     Serial.println("✅ Will be save to EEPROM with auth_pass");
   }
 
   EEPROM.commit();
-
   Serial.println("✅ EEPROM saved");
 }
 
 void connectMQTT(bool force = false)
 {
   loadConfigFromEEPROM();
-  if (!MQTT_SERVER.length())
+  if (strlen(MQTT_SERVER) == 0)
     return;
 
   if (WiFi.status() != WL_CONNECTED)
@@ -439,7 +461,7 @@ void connectMQTT(bool force = false)
   Serial.println("MQTT соединение...");
   blink(100, 3);
 
-  mqttClient.setServer(MQTT_SERVER.c_str(), MQTT_PORT);
+  mqttClient.setServer(MQTT_SERVER, (uint16_t)MQTT_PORT);
 
   StaticJsonDocument<192> doc;
   doc["status"] = "offline";
@@ -447,7 +469,7 @@ void connectMQTT(bool force = false)
   String jsonOut;
   serializeJson(doc, jsonOut);
 
-  if (mqttClient.connect(MQTT_CLIENT_ID.c_str(), MQTT_USER.c_str(), MQTT_PASS.c_str(), "device/status", 1, true, jsonOut.c_str()))
+  if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS, "device/status", 1, true, jsonOut.c_str()))
   {
     Serial.println("✅ MQTT Connected");
     configServer.setMqttConnected(true);
@@ -486,7 +508,7 @@ void callback(char *topic, byte *payload, unsigned int length)
   Serial.print("⚠️ MQTT_CLIENT_ID: ");
   Serial.println(MQTT_CLIENT_ID);
 
-  if (device_id && strcmp(device_id, MQTT_CLIENT_ID.c_str()) == 0)
+  if (device_id && strcmp(device_id, MQTT_CLIENT_ID) == 0)
   {
     Serial.print("📥 JSON MQTT Команда: ");
     Serial.print(action);
