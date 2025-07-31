@@ -1,48 +1,34 @@
-/*
-    Простой менеджер WiFi для esp8266 для задания логина-пароля WiFi
-    GitHub: https://github.com/BorisKotlyarov/WifiConnectionManager
+#define WCM_AP_NAME "XY-L30A-Config"
+#define WCM_AP_IP 192, 168, 1, 1
 
-    forked from (AlexGyver, alex@alexgyver.ru)
-    MIT License
-*/
-
-#define SP_AP_NAME "XY-L30A-Config" // название точки
-#define SP_AP_IP 192, 168, 1, 1     // IP точки
-
-#ifndef _SimplePortal_h
-#define _SimplePortal_h
+#ifndef WIFI_CONNECTION_MANAGER_H
+#define WIFI_CONNECTION_MANAGER_H
 #include <DNSServer.h>
-#ifdef ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#else
-#include <WiFi.h>
-#include <WebServer.h>
-#endif
 
-#define SP_ERROR 0
-#define SP_SUBMIT 1
-#define SP_SWITCH_AP 2
-#define SP_SWITCH_LOCAL 3
-#define SP_EXIT 4
-#define SP_TIMEOUT 5
 
-struct PortalCfg
+#define WCM_ERROR 0
+#define WCM_SUBMIT 1
+#define WCM_SWITCH_AP 2
+#define WCM_SWITCH_LOCAL 3
+#define WCM_EXIT 4
+#define WCM_TIMEOUT 5
+
+struct WCMConfig
 {
   char SSID[32] = "";
   char pass[32] = "";
-  // char address[32] = "";
-  uint8_t mode = WIFI_AP; // (1 WIFI_STA, 2 WIFI_AP)
+  uint8_t mode = WIFI_AP;
 };
-extern PortalCfg portalCfg;
+extern WCMConfig wcmConfig;
 
-void portalStart();                   // запустить портал
-void portalStop();                    // остановить портал
-bool portalTick();                    // вызывать в цикле
-void portalRun(uint32_t prd = 60000); // блокирующий вызов
-void portalRunInf();                  // блокирующий бесконечный вызов
-byte portalStatus();                  // статус: 1 connect, 2 ap, 3 local, 4 exit, 5 timeout
+void WCMStart();
+void WCMStop();
+bool WCMTick(); 
+void WCMRun();
+byte WCMStatus();
 
-void SP_handleConnect();
-void SP_handleExit();
+void WCM_handleConnect();
+void WCM_handleExit();
 #endif
