@@ -9,7 +9,7 @@ struct XYPacket
     int percent;   // Пример: 000
     int hours;     // Время: часы
     int minutes;   // Время: минуты
-    char state[3]; // Например: "CL"
+    char state[3]; // exaple: "CL"
 };
 
 class XYParser

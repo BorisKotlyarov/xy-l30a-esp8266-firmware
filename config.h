@@ -1,8 +1,7 @@
 #ifndef CONFIG_XYL30A_ESPMQTT_CLIENT_H
 #define CONFIG_XYL30A_ESPMQTT_CLIENT_H
 
-const char* DEFAULT_USER = "admin";
-const char* DEFAULT_PASS = "123456";
-
+const char *DEFAULT_USER = "admin";
+const char *DEFAULT_PASS = "123456";
 
 #endif
