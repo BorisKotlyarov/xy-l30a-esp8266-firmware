@@ -21,9 +21,10 @@ void connectToAP(const char *ssid, const char *pass, bool isCheckAttempt);
 void debugEEPROM(int start, int len);
 void blink(int _delay, int num);
 void resetWiFiCredentials();
-void handleMQTTCommand(String action, String value);
+void handleMQTTCommand(const char *action, const char *value);
 void publishStatus();
 void waitForStableVcc();
 float readVcc();
+void debugHeap(const char *topic);
 
 #endif

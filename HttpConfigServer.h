@@ -1,6 +1,6 @@
 #ifndef HTTP_CONFIG_SERVER_H
 #define HTTP_CONFIG_SERVER_H
-
+#pragma once
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <Arduino.h>

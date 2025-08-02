@@ -52,12 +52,16 @@ const int OFFSET_AUTH_PASS = 480;
 
 void setup()
 {
-
+  // debugHeap("begin setup");
   Serial.begin(115200);
   delay(1000);
 
+  loraSerial.begin(9600); // UART для XY-L30A активен, если НЕ Serial Debug
+  Serial.print(PSTR("loraSerial begin"));
+  delay(3000);
+
   pinMode(LED_BUILTIN, OUTPUT);
-  Serial.println("=== Let's start ===");
+  Serial.println(PSTR("=== Let's start ==="));
 
   EEPROM.begin(EEPROM_SIZE);
 
@@ -68,34 +72,52 @@ void setup()
 
   if (strlen(WIFI_SSID) == 0)
   {
-    Serial.println("📡 SSID not found. Starting Wireless Connection Manager");
+    Serial.println("SSID not found. Starting Wireless Connection Manager");
     initLogin();
   }
   else
   {
+    Serial.println("Begin connect to wifi before connectToAP");
     connectToAP(WIFI_SSID, WIFI_PASSWORD, true);
+    Serial.println("After connectToAP");
+    delay(100);
   }
 
+  Serial.println("Before configServer.setIsSerialDebug");
+  delay(100);
   configServer.setIsSerialDebug(isSerialDebug);
+  Serial.println("after configServer.setIsSerialDebug before condition");
+  delay(100);
+
   if (!isSerialDebug)
   {
-    loraSerial.begin(9600); // UART для XY-L30A активен, если НЕ Serial Debug
+    Serial.print(PSTR("loraSerial turn on"));
+    delay(100);
+    // loraSerial.begin(9600); // UART для XY-L30A активен, если НЕ Serial Debug
+    // Serial.print(PSTR("loraSerial begin"));
+    // delay(3000);
     configServer.setLoraSerial(&loraSerial);
+    Serial.print(PSTR("after  configServer.setLoraSerial"));
+    delay(100);
   }
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("\n✅ Wi-Fi подключен");
+    Serial.println("\nWi-Fi подключен");
+    delay(100);
     Serial.print("IP ESP: ");
     Serial.println(WiFi.localIP());
+    delay(100);
   }
   else
   {
-    Serial.println("\n❌ Wi-Fi не удалось подключиться");
+    Serial.println("\nWi-Fi не удалось подключиться");
+    delay(100);
     // Можешь решать: перезапустить, ждать в loop и пытаться повторно
     ESP.restart();
     return;
   }
+
   loadConfigFromEEPROM();
 
   configServer.begin();
@@ -109,6 +131,7 @@ void setup()
   Serial.println(MQTT_PORT);
 
   connectMQTT(true);
+  // debugHeap("after setup");
 }
 
 void loop()
@@ -149,6 +172,7 @@ void loop()
   }
 }
 
+/** Optimazed */
 void publishStatus()
 {
   static unsigned long lastMqttStatusTime = 0;
@@ -166,24 +190,30 @@ void publishStatus()
   int sec = uptimeSec % 60;
 
   char uptimeStr[12];
-  snprintf(uptimeStr, sizeof(uptimeStr), "%02d:%02d:%02d", hrs, min, sec);
+  snprintf_P(uptimeStr, sizeof(uptimeStr), PSTR("%02d:%02d:%02d"), hrs, min, sec);
+
+  // Формируем IP
+  const IPAddress &ip = WiFi.localIP();
+  char ipStr[15];
+  snprintf_P(ipStr, sizeof(ipStr), PSTR("%u.%u.%u.%u"),
+             ip[0], ip[1], ip[2], ip[3]);
 
   StaticJsonDocument<192> doc;
   doc["status"] = "online";
-  doc["ip"] = WiFi.localIP().toString();
-  doc["rssi"] = String(WiFi.RSSI());
-  doc["uptime"] = String(uptimeStr);
+  doc["ip"] = ipStr;
+  doc["rssi"] = WiFi.RSSI();
+  doc["uptime"] = uptimeStr;
   doc["device_id"] = MQTT_CLIENT_ID;
 
-  String jsonOut;
-  serializeJson(doc, jsonOut);
+  char jsonOut[128] = {0};
+  serializeJson(doc, jsonOut, sizeof(jsonOut));
 
-  mqttClient.publish("device/status", jsonOut.c_str(), true);
+  mqttClient.publish("device/status", jsonOut, MQTT_RETAIN);
 }
 
 void resetWiFiCredentials()
 {
-  Serial.println("⚠️ Сброс Wi-Fi конфигурации...");
+  Serial.println("Сброс Wi-Fi конфигурации...");
 
   // Очистим EEPROM области, где хранятся SSID и пароль
   for (int i = OFFSET_WIFI_SSID; i < OFFSET_WIFI_PASS + 64; i++)
@@ -199,7 +229,7 @@ void resetWiFiCredentials()
   WiFi.mode(WIFI_OFF);
   delay(100);
 
-  Serial.println("✅ Wi-Fi конфигурация сброшена");
+  Serial.println("Wi-Fi конфигурация сброшена");
 
   // Перезагрузим для применения
   ESP.restart();
@@ -300,7 +330,7 @@ void initLogin()
     else if (WiFi.status() == WL_CONNECTED)
     {
       saveWiFiConfig(wcmConfig.SSID, wcmConfig.pass);
-      Serial.println("✅ Wi-Fi saved");
+      Serial.println("Wi-Fi saved");
       return;
     }
   }
@@ -427,120 +457,154 @@ void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
   if (auth_user && strlen(auth_user) > 0 && isAscii(auth_user[0]))
   {
     saveStringToEEPROM(OFFSET_AUTH_USER, auth_user);
-    Serial.println("✅ Will be save to EEPROM with auth_user");
+    Serial.println("Will be save to EEPROM with auth_user");
   }
 
   if (auth_pass && strlen(auth_pass) > 0 && isAscii(auth_pass[0]))
   {
     saveStringToEEPROM(OFFSET_AUTH_PASS, auth_pass);
-    Serial.println("✅ Will be save to EEPROM with auth_pass");
+    Serial.println("Will be save to EEPROM with auth_pass");
   }
 
   EEPROM.commit();
-  Serial.println("✅ EEPROM saved");
+  Serial.println("EEPROM saved");
 }
 
+/** Optimazed */
 void connectMQTT(bool force = false)
 {
-  loadConfigFromEEPROM();
-  if (strlen(MQTT_SERVER) == 0)
-    return;
+  // Буферы для PROGMEM строк
+  char willTopic[32];
+  char commandTopic[32];
+  strncpy_P(willTopic, STATUS_TOPIC, sizeof(willTopic));
+  strncpy_P(commandTopic, COMMAND_TOPIC, sizeof(commandTopic));
 
-  if (WiFi.status() != WL_CONNECTED)
+  // Проверка условий
+  if (!force && (strlen(MQTT_SERVER) == 0 ||
+                 WiFi.status() != WL_CONNECTED ||
+                 millis() - lastMqttAttempt < mqttRetryInterval))
   {
-    // Serial.println("🚫 Wi-Fi не подключён — MQTT не запускаем");
     return;
   }
 
-  unsigned long now = millis();
-  if (!force && now - lastMqttAttempt < mqttRetryInterval)
-    return;
-
-  lastMqttAttempt = now;
-
-  Serial.println("MQTT соединение...");
+  lastMqttAttempt = millis();
+  Serial.println(F("MQTT connect..."));
   blink(100, 3);
 
-  mqttClient.setServer(MQTT_SERVER, (uint16_t)MQTT_PORT);
+  // Формируем Last Will через шаблон
+  char willPayload[128];
+  snprintf_P(willPayload, sizeof(willPayload),
+             LAST_WILL_JSON,
+             OFFLINE_STATUS,
+             MQTT_CLIENT_ID);
 
-  StaticJsonDocument<192> doc;
-  doc["status"] = "offline";
-  doc["device_id"] = MQTT_CLIENT_ID;
-  String jsonOut;
-  serializeJson(doc, jsonOut);
-
-  if (mqttClient.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS, "device/status", 1, true, jsonOut.c_str()))
+  // Подключение
+  if (mqttClient.connect(
+          MQTT_CLIENT_ID,
+          MQTT_USER,
+          MQTT_PASS,
+          willTopic,
+          MQTT_QOS,
+          MQTT_RETAIN,
+          willPayload))
   {
-    Serial.println("✅ MQTT Connected");
+    Serial.println(F("✅ MQTT Connected"));
     configServer.setMqttConnected(true);
-    mqttClient.subscribe("device/command");
+
+    // Подписка с проверкой
+    if (!mqttClient.subscribe(commandTopic))
+    {
+      Serial.println(F("⚠️ Subscribe failed"));
+    }
   }
   else
   {
-    Serial.print("❌ MQTT ERROR: ");
+    Serial.print(F("❌ MQTT ERROR: "));
     Serial.println(mqttClient.state());
     configServer.setMqttConnected(false);
   }
+  // debugHeap("after connectMQTT");
 }
-
+/** Optimazed */
 void callback(char *topic, byte *payload, unsigned int length)
 {
-  Serial.print("topic:");
-  Serial.println(topic);
+  // Буферы (в стеке)
+  char logBuffer[128];   // Для готовых сообщений
+  char formatBuffer[64]; // Для шаблонов из PROGMEM
 
+  // 1. Логирование топика
+  strncpy_P(formatBuffer, MSG_TOPIC, sizeof(formatBuffer));
+  snprintf(logBuffer, sizeof(logBuffer), formatBuffer, topic);
+  Serial.println(logBuffer);
+
+  // 2. Парсинг JSON
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, payload, length);
 
   if (error)
   {
-    Serial.print("⚠️ Ошибка JSON: ");
-    Serial.println(error.c_str());
+    strncpy_P(formatBuffer, MSG_JSON_ERROR, sizeof(formatBuffer));
+    snprintf(logBuffer, sizeof(logBuffer), formatBuffer, error.c_str());
+    Serial.println(logBuffer);
     return;
   }
 
+  // 3. Извлечение данных
   const char *action = doc["action"];
   const char *value = doc["value"];
-  const char *device_id = doc["reciever"];
+  const char *device_id = doc["receiver"];
 
-  Serial.print("⚠️ device_id from JSON: ");
-  Serial.println(device_id);
-
-  Serial.print("⚠️ MQTT_CLIENT_ID: ");
-  Serial.println(MQTT_CLIENT_ID);
+  // 4. Проверка device_id
+  strncpy_P(formatBuffer, MSG_DEVICE_ID, sizeof(formatBuffer));
+  snprintf(logBuffer, sizeof(logBuffer), formatBuffer,
+           device_id ? device_id : "null", MQTT_CLIENT_ID);
+  Serial.println(logBuffer);
 
   if (device_id && strcmp(device_id, MQTT_CLIENT_ID) == 0)
   {
-    Serial.print("📥 JSON MQTT Команда: ");
-    Serial.print(action);
-    Serial.print(" → ");
-    Serial.println(value);
+    // 5. Логирование команды
+    strncpy_P(formatBuffer, MSG_MQTT_CMD, sizeof(formatBuffer));
+    snprintf(logBuffer, sizeof(logBuffer), formatBuffer,
+             action ? action : "null", value ? value : "null");
+    Serial.println(logBuffer);
 
-    handleMQTTCommand(String(action), String(value));
+    // 6. Обработка команды
+    handleMQTTCommand(action, value);
   }
+  // debugHeap("after callback");
 }
-
-void handleMQTTCommand(String action, String value)
+/** Optimazed */
+void handleMQTTCommand(const char *action, const char *value)
 {
-  if (action == "restart")
+  if (!action)
+    return;
+
+  // Буфер для сообщений
+  char logBuffer[64];
+
+  if (strcmp(action, "restart") == 0)
   {
     ESP.restart();
   }
-  else if (action == "blink")
+  else if (strcmp(action, "blink") == 0 && value)
   {
-    blink(200, value.toInt());
+    blink(200, atoi(value));
   }
-  else if (action == "uart_send")
+  else if (strcmp(action, "uart_send") == 0 && value)
   {
     loraSerial.print(value);
   }
-  else if (action == "reset_wifi")
+  else if (strcmp(action, "reset_wifi") == 0)
   {
     resetWiFiCredentials();
   }
   else
   {
-    Serial.println("⚠️ Неизвестная команда: " + action);
+    strncpy_P(logBuffer, MSG_UNKNOWN_CMD, sizeof(logBuffer));
+    snprintf(logBuffer, sizeof(logBuffer), logBuffer, action);
+    Serial.println(logBuffer);
   }
+  // debugHeap("after handleMQTTCommand");
 }
 
 void loraReader()
@@ -572,28 +636,47 @@ void loraReader()
 
 void handleXYResponse(const char *rawLine)
 {
+
+  if (!mqttClient.connected())
+  {
+    return;
+  }
+
+  char jsonBuffer[256] = {0};
+  char JsonTypeData[] = "data";
+  char JsonTypeConfig[] = "config";
+  char JsonTypeRaw[] = "raw";
+
   XYPacket packet;
 
   // 🧠 Попытка распарсить как data
   if (XYParser::parse(rawLine, packet))
   {
+
+    char timeStr[6] = {0};
+    snprintf(timeStr, sizeof(timeStr), "%02d:%02d", packet.hours, packet.minutes);
+
     StaticJsonDocument<192> doc;
-    doc["type"] = "data";
+    doc["type"] = JsonTypeData;
     doc["voltage"] = packet.voltage;
     doc["percent"] = packet.percent;
-    doc["time"] = String(packet.hours) + ":" + String(packet.minutes);
+    doc["time"] = timeStr;
     doc["state"] = packet.state;
     doc["device_id"] = MQTT_CLIENT_ID;
 
-    String jsonOut;
-    serializeJson(doc, jsonOut);
-    mqttClient.publish("esp/data", jsonOut.c_str());
+    serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
+
+    char topic[32];
+    strncpy_P(topic, TOPIC_XY_DATA, sizeof(topic));
+    mqttClient.publish(topic, jsonBuffer);
+
+    // Serial.println(jsonBuffer);
     return;
   }
 
   // 🧠 Альтернатива — конфигурационные параметры
   StaticJsonDocument<256> doc;
-  doc["type"] = "config";
+  doc["type"] = JsonTypeConfig;
   doc["device_id"] = MQTT_CLIENT_ID;
   JsonObject params = doc.createNestedObject("params");
 
@@ -621,7 +704,6 @@ void handleXYResponse(const char *rawLine)
       }
     }
 
-    // Проверка на таймер (формат HH:MM)
     if (!matched && strchr(token, ':') && strlen(token) <= 5)
     {
       params["timer"] = token;
@@ -633,19 +715,22 @@ void handleXYResponse(const char *rawLine)
 
   if (hasAny)
   {
-    String jsonOut;
-    serializeJson(doc, jsonOut);
-    mqttClient.publish("esp/config", jsonOut.c_str());
+    char jsonBufferConf[256] = {0};
+    char topic[32];
+    strncpy_P(topic, TOPIC_XY_CONFIG, sizeof(topic));
+    serializeJson(doc, jsonBufferConf, sizeof(jsonBufferConf));
+    mqttClient.publish(topic, jsonBufferConf);
   }
   else
   {
     StaticJsonDocument<128> rawDoc;
-    rawDoc["type"] = "raw";
+    rawDoc["type"] = JsonTypeRaw;
     rawDoc["line"] = rawLine;
     rawDoc["device_id"] = MQTT_CLIENT_ID;
-
-    String jsonRaw;
-    serializeJson(rawDoc, jsonRaw);
-    mqttClient.publish("esp/raw", jsonRaw.c_str());
+    char jsonBufferRaw[256] = {0};
+    serializeJson(rawDoc, jsonBufferRaw, sizeof(jsonBufferRaw));
+    char topic[32];
+    strncpy_P(topic, TOPIC_XY_RAW, sizeof(topic));
+    mqttClient.publish(topic, jsonBufferRaw);
   }
 }
