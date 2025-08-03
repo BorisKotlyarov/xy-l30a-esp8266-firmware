@@ -13,8 +13,8 @@
 
 #define IS_SERIAL_DEBUG true // включён режим отладки, UART (if==true:  loraSerial НЕ инициализируется)
 
-WiFiConnectionManager wifiManager("XY-LX0A-Config", IPAddress(192, 168, 1, 1));
-// UART для XY-L30A/
+WiFiConnectionManager wifiManager("XY-LXXA-Config", IPAddress(192, 168, 1, 1));
+// UART для XY-L10A/XY-L30A
 SoftwareSerial loraSerial(3, 1); // RX = GPIO3, TX = GPIO1
 HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
 
@@ -91,7 +91,7 @@ void setup()
   {
     Serial.print(PSTR("loraSerial turn on"));
     delay(100);
-    loraSerial.begin(9600); // UART для XY-L30A/XY-L10A активен, если НЕ Serial Debug
+    loraSerial.begin(9600); // UART for XY-L10A/XY-L30A is active if NOT Serial Debug
     Serial.print(PSTR("loraSerial begin"));
     delay(3000);
     configServer.setLoraSerial(&loraSerial);
@@ -267,6 +267,7 @@ bool wifiConnectionCheckAndRenew()
 
 void saveStringToEEPROM(int addr, const String &value)
 {
+
   Serial.print("💾 Save to EEPROM @");
   Serial.print(addr);
   Serial.print(": [");
@@ -612,7 +613,7 @@ void handleMQTTCommand(const char *action, const char *value)
   }
   // debugHeap("after handleMQTTCommand");
 }
-
+/** DO NOT TOUCH !!! */
 void loraReader()
 {
   static char loraBuffer[64];
@@ -640,6 +641,7 @@ void loraReader()
   }
 }
 
+/** Optimazed */
 void handleXYResponse(const char *rawLine)
 {
 
