@@ -11,6 +11,7 @@
 #include "config.h"
 #include "HttpConfigServer.h"
 
+#define IS_SERIAL_DEBUG true // включён режим отладки, UART (if==true:  loraSerial НЕ инициализируется)
 // UART для XY-L30A
 SoftwareSerial loraSerial(3, 1); // RX = GPIO3, TX = GPIO1
 HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
@@ -27,12 +28,11 @@ char MQTT_CLIENT_ID[64] = {0};
 char authUser[32] = {0};
 char authPass[32] = {0};
 
-int MQTT_PORT = 1883;
+uint16_t MQTT_PORT = 1883;
 
 // Прототипы
 // prototypes.h
 
-bool isSerialDebug = false; // включён режим отладки, UART (if==true:  loraSerial НЕ инициализируется)
 unsigned long lastMqttAttempt = 0;
 const unsigned long mqttRetryInterval = 5000; // в мс
 unsigned int WifiattemptReconnect = 0;
@@ -55,10 +55,6 @@ void setup()
   // debugHeap("begin setup");
   Serial.begin(115200);
   delay(1000);
-
-  loraSerial.begin(9600); // UART для XY-L30A активен, если НЕ Serial Debug
-  Serial.print(PSTR("loraSerial begin"));
-  delay(3000);
 
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.println(PSTR("=== Let's start ==="));
@@ -85,17 +81,17 @@ void setup()
 
   Serial.println("Before configServer.setIsSerialDebug");
   delay(100);
-  configServer.setIsSerialDebug(isSerialDebug);
+  configServer.setIsSerialDebug(IS_SERIAL_DEBUG);
   Serial.println("after configServer.setIsSerialDebug before condition");
   delay(100);
 
-  if (!isSerialDebug)
+  if (!IS_SERIAL_DEBUG)
   {
     Serial.print(PSTR("loraSerial turn on"));
     delay(100);
-    // loraSerial.begin(9600); // UART для XY-L30A активен, если НЕ Serial Debug
-    // Serial.print(PSTR("loraSerial begin"));
-    // delay(3000);
+    loraSerial.begin(9600); // UART для XY-L30A/XY-L10A активен, если НЕ Serial Debug
+    Serial.print(PSTR("loraSerial begin"));
+    delay(3000);
     configServer.setLoraSerial(&loraSerial);
     Serial.print(PSTR("after  configServer.setLoraSerial"));
     delay(100);
@@ -125,7 +121,7 @@ void setup()
   Serial.print("MQTT IP: ");
   Serial.println(MQTT_SERVER);
 
-  mqttClient.setServer(MQTT_SERVER, (uint16_t)MQTT_PORT);
+  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(callback);
   Serial.print("MQTT PORT: ");
   Serial.println(MQTT_PORT);
@@ -154,7 +150,7 @@ void loop()
 
   configServer.loop();
 
-  if (!isSerialDebug)
+  if (!IS_SERIAL_DEBUG)
   {
     loraReader();
   }
@@ -408,13 +404,13 @@ void loadAuthFromEEPROM()
     strncpy(authPass, DEFAULT_PASS, sizeof(authPass));
   }
 
-  Serial.println("🔐 Авторизация:");
-  Serial.print("User: [");
+  Serial.println(F("🔐 Авторизация:"));
+  Serial.print(F("User: ["));
   Serial.print(authUser);
-  Serial.println("]");
+  Serial.println(F("]"));
 
   // Временное решение для совместимости:
-  configServer.setAuth(String(authUser), String(authPass));
+  configServer.setAuth(authUser, authPass);
 }
 
 void loadConfigFromEEPROM()
@@ -435,11 +431,11 @@ void loadConfigFromEEPROM()
 
   // Временное решение для совместимости:
   configServer.setMQTT(
-      String(MQTT_SERVER),
-      String(MQTT_PORT),
-      String(MQTT_USER),
-      String(MQTT_PASS),
-      String(MQTT_CLIENT_ID));
+      MQTT_SERVER,
+      MQTT_PORT,
+      MQTT_USER,
+      MQTT_PASS,
+      MQTT_CLIENT_ID);
 }
 
 void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
