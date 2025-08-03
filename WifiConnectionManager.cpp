@@ -1,8 +1,6 @@
-#include "WifiConnectionManager.h"
-static DNSServer _WCM_dnsServer;
-static ESP8266WebServer _WCM_server(80);
+#include "WiFiConnectionManager.h"
 
-const char WCM_connect_page[] PROGMEM = R"=====(
+const char WiFiConnectionManager::connectPage[] PROGMEM = R"=====(
 <!DOCTYPE HTML><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head><body>
@@ -14,85 +12,91 @@ const char WCM_connect_page[] PROGMEM = R"=====(
 <div class="container">
 <h3>WiFi settings</h3>
 <form action="/connect" method="POST">
-    <input type="text" name="ssid" placeholder="SSID"/>
-    <input type="text" name="pass" placeholder="Pass"/>
+    <input type="text" name="ssid" placeholder="SSID" maxlength="31"/>
+    <input type="text" name="pass" placeholder="Password" maxlength="63"/>
     <input type="submit" value="Submit">
 </form>
 </div>
-</body></html>)=====";
+</body></html>
+)=====";
 
+WiFiConnectionManager::WiFiConnectionManager(const char *apName, const IPAddress &apIP, const IPAddress &subnet)
+    : apName(apName), apIP(apIP), subnet(subnet) {}
 
-static bool _WCM_started = false;
-static byte _WCM_status = 0;
-WCMConfig wcmConfig;
-
-void WCM_handleConnect()
-{
-  strcpy(wcmConfig.SSID, _WCM_server.arg("ssid").c_str());
-  strcpy(wcmConfig.pass, _WCM_server.arg("pass").c_str());
-  wcmConfig.mode = WIFI_STA;
-  _WCM_status = 1;
-}
-
-void WCM_handleExit()
-{
-  _WCM_status = 4;
-}
-
-void WCMStart()
+void WiFiConnectionManager::begin()
 {
   WiFi.softAPdisconnect();
   WiFi.disconnect();
-  IPAddress apIP(WCM_AP_IP);
-  IPAddress subnet(255, 255, 255, 0);
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, subnet);
-  WiFi.softAP(WCM_AP_NAME);
-  _WCM_dnsServer.start(53, "*", apIP);
+  WiFi.softAP(apName);
 
-  _WCM_server.onNotFound([]()
-                        { _WCM_server.send(200, "text/html", WCM_connect_page); });
-  _WCM_server.on("/connect", HTTP_POST, WCM_handleConnect);
-  _WCM_server.on("/exit", HTTP_POST, WCM_handleExit);
-  _WCM_server.begin();
-  _WCM_started = true;
-  _WCM_status = 0;
+  dnsServer.start(53, "*", apIP);
+
+  webServer.onNotFound([this]()
+                       { webServer.send(200, "text/html", FPSTR(connectPage)); });
+
+  webServer.on("/connect", HTTP_POST, [this]()
+               { handleConnect(); });
+  webServer.on("/exit", HTTP_POST, [this]()
+               { handleExit(); });
+
+  webServer.begin();
+  isRunning = true;
+  status = 0;
 }
 
-void WCMStop()
+void WiFiConnectionManager::stop()
 {
+  dnsServer.stop();
+  webServer.stop();
   WiFi.softAPdisconnect();
-  _WCM_server.stop();
-  _WCM_dnsServer.stop();
-  _WCM_started = false;
+  isRunning = false;
 }
 
-bool WCMTick()
+bool WiFiConnectionManager::process()
 {
-  if (_WCM_started)
-  {
-    _WCM_dnsServer.processNextRequest();
-    _WCM_server.handleClient();
-    yield();
-    if (_WCM_status)
-    {
-      WCMStop();
-      return 1;
-    }
+  if (!isRunning)
+    return false;
+
+  dnsServer.processNextRequest();
+  webServer.handleClient();
+  yield();
+
+  if (status == 1)
+  { // New config received
+    stop();
+    return true;
   }
-  return 0;
+  return false;
 }
 
-void WCMRun()
+void WiFiConnectionManager::runBlocking()
 {
-  WCMStart();
-  while (!WCMTick())
+  begin();
+  while (!process())
   {
     yield();
   }
 }
 
-byte WCMStatus()
+byte WiFiConnectionManager::getStatus() const
 {
-  return _WCM_status;
+  return status;
+}
+
+// --- Private methods ---
+void WiFiConnectionManager::handleConnect()
+{
+  strncpy(config.SSID, webServer.arg("ssid").c_str(), sizeof(config.SSID) - 1);
+  strncpy(config.password, webServer.arg("pass").c_str(), sizeof(config.password) - 1);
+  config.SSID[sizeof(config.SSID) - 1] = '\0';
+  config.password[sizeof(config.password) - 1] = '\0';
+  config.mode = WIFI_STA;
+  status = 1;
+}
+
+void WiFiConnectionManager::handleExit()
+{
+  status = 4; // Exit requested
 }

@@ -12,7 +12,9 @@
 #include "HttpConfigServer.h"
 
 #define IS_SERIAL_DEBUG true // включён режим отладки, UART (if==true:  loraSerial НЕ инициализируется)
-// UART для XY-L30A
+
+WiFiConnectionManager wifiManager("XY-LX0A-Config", IPAddress(192, 168, 1, 1));
+// UART для XY-L30A/
 SoftwareSerial loraSerial(3, 1); // RX = GPIO3, TX = GPIO1
 HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
 
@@ -311,23 +313,31 @@ void saveStringToEEPROM(int addr, const char *value)
 
 void initLogin()
 {
-  WCMRun();
-
-  Serial.println(WCMStatus());
-
-  if (WCMStatus() == WCM_SUBMIT)
+  while (true)
   {
-    connectToAP(wcmConfig.SSID, wcmConfig.pass, true);
+    wifiManager.runBlocking();
+    byte status = wifiManager.getStatus();
 
-    if (WiFi.status() != WL_CONNECTED)
-    {
-      initLogin();
+    if (status == 1)
+    { // Данные получены
+      const WiFiConnectionManager::Config &config = wifiManager.getConfig();
+      connectToAP(config.SSID, config.password, true);
+
+      if (WiFi.status() == WL_CONNECTED)
+      {
+        saveWiFiConfig(config.SSID, config.password);
+        Serial.println("Wi-Fi saved!");
+        break; // Выход из цикла
+      }
+      else
+      {
+        Serial.println("Connection failed! Retrying...");
+      }
     }
-    else if (WiFi.status() == WL_CONNECTED)
-    {
-      saveWiFiConfig(wcmConfig.SSID, wcmConfig.pass);
-      Serial.println("Wi-Fi saved");
-      return;
+    else if (status == 4)
+    { // Выход без сохранения
+      Serial.println("Setup canceled.");
+      break;
     }
   }
 }
