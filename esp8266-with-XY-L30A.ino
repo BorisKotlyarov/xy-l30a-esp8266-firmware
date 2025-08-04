@@ -5,8 +5,8 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <user_interface.h>
+#include <WiFiSetupManager.h>
 #include "XYParser.h"
-#include "WifiConnectionManager.h"
 #include "config.h"
 #include "HttpConfigServer.h"
 #include "EEPROMConfigManager.h"
@@ -16,7 +16,7 @@
 // false:  Serial.print  do not work
 #define IS_SERIAL_DEBUG true
 
-WiFiConnectionManager wifiManager("XY-LXXA-Config", IPAddress(192, 168, 1, 1));
+WiFiSetupManager wifiManager("XY-LXXA-Config", IPAddress(192, 168, 1, 1));
 // UART for XY-L10A/XY-L30A
 SoftwareSerial loraSerial(3, 1); // RX = GPIO3, TX = GPIO1
 HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
@@ -243,7 +243,7 @@ void initLogin()
 
     if (status == 1)
     { // has data (SSID & password), try to coonect
-      const WiFiConnectionManager::Config &config = wifiManager.getConfig();
+      const WiFiSetupManager::Config &config = wifiManager.getConfig();
       connectToAP(config.SSID, config.password, true);
 
       if (WiFi.status() == WL_CONNECTED)
@@ -383,7 +383,7 @@ void connectMQTT(bool force = false)
     configServer.setMqttConnected(true);
 
     // subscribe to topic
-    mqttClient.subscribe(commandTopic)
+    mqttClient.subscribe(commandTopic);
   }
   else
   {

@@ -14,23 +14,23 @@ const char HTML_HEADER[] PROGMEM = R"=====(<!DOCTYPE html><!DOCTYPE html>
   <html>
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>XY-L10A/XY-L30A Control</title>
     <style>
+    <style>
+    * { box-sizing: border-box; }
     body { font-family: Arial; margin: 20px; }
-    input, button { padding: 10px; margin: 5px; }
+    input, button { padding: 10px 0px;; margin: 5px 0px; }
     .btn {
-        background-color: #5a6463;
-        color: white;
-        border: none;
-        text-transform: uppercase;
-        font-weight: 700;
+        background-color: #5a6463;color: white;border: none;text-transform: uppercase; font-weight: 700;
     }
-    .btn.danger {
-        background-color: #e90000;
-    }
+    .btn.danger { background-color: #e90000; }
     .danger-text { color: #e90000; }
     label { font-weight: bold; display: block; margin-top: 12px; }
     .w-100 {width: 100%;}
+    fieldset {  margin-bottom: 1rem; background-color: #e7e7e7;  border-color: #ebebeb; }
+    legend {font-weight: 900; }
+    </style>
     </style>
   </head>
   <body>
@@ -43,8 +43,9 @@ const char ROOT_HTML[] PROGMEM = R"=====(
     <div id="mqttStatus" style="font-weight:bold; margin-top:10px;"></div>
 
     </header>
-    <h1>XY-L30A — Controll</h1>
-    
+    <hr>
+    <h2>XY-L30A — Controll</h1>
+    <hr>
     <button class="btn" onclick="sendCommand('on', event)">on</button>
     <button class="btn" onclick="sendCommand('off', event)">off</button>
     <button class="btn" onclick="sendCommand('read', event)">read</button>
@@ -65,12 +66,14 @@ const char ROOT_HTML[] PROGMEM = R"=====(
       <input type="time" id="timer">
       <button class="btn" onclick="setTimer(event)">timer</button>
     </div>
-
+    <hr>
     <form name="publish">
       <input type="text" name="message">
       <input type="submit" value="Send">
     </form>
+    <hr>
     <button class="btn danger" onclick="confirmResetWifi(event)">Reset WIFI auth</button>
+    <hr>
     <div id="messages" style="min-height:30px; border:solid 1px black; margin-top:10px; padding:5px;"></div>
 
     <script>
@@ -172,32 +175,38 @@ const char ROOT_HTML[] PROGMEM = R"=====(
 
 const char HTML_SETTINGS_START[] PROGMEM = R"=====(
     <header><a href="/">XY-L30A Control</a></header>
-    <h2>⚙️ Settings</h2>
+    <hr>
+    <h2>⚙️ Settings</h2><hr>
     <form method="POST" action="/config" id="configForm">
-        <label>MQTT Server/Server IP:</label>
+    <fieldset>
+      <legend>MQTT settings</legend>
+        <label for="mqtt_ip">MQTT Server/Server IP:</label>
 )=====";
 
-const char HTML_SETTINGS_MQTT_PORT_LABEL[] PROGMEM = R"=====(<label>MQTT Port:</label>)=====";
-const char HTML_SETTINGS_MQTT_USER_LABEL[] PROGMEM = R"=====(<label>MQTT User:</label>)=====";
-const char HTML_SETTINGS_MQTT_PASS_LABEL[] PROGMEM = R"=====(<label>MQTT Password:</label>)=====";
-const char HTML_SETTINGS_MQTT_CLIENT_ID_LABEL[] PROGMEM = R"=====(<label>MQTT Client ID:</label>)=====";
+const char HTML_SETTINGS_MQTT_PORT_LABEL[] PROGMEM = R"=====(<label for="mqtt_port">MQTT Port:</label>)=====";
+const char HTML_SETTINGS_MQTT_USER_LABEL[] PROGMEM = R"=====(<label for="mqtt_user">MQTT User:</label>)=====";
+const char HTML_SETTINGS_MQTT_PASS_LABEL[] PROGMEM = R"=====(<label for="mqtt_pass">MQTT Password:</label>)=====";
+const char HTML_SETTINGS_MQTT_CLIENT_ID_LABEL[] PROGMEM = R"=====(<label for="client_id">MQTT Client ID:</label>)=====";
 
 const char HTML_SETTINGS_INPUT_END[] PROGMEM = R"=====(">)=====";
 
-const char HTML_SETTINGS_INPUT_MQTT_SERVER[] PROGMEM = R"=====(<input type="text" name="mqtt_ip" value=")=====";
-const char HTML_SETTINGS_INPUT_MQTT_PORT[] PROGMEM = R"=====(<input type="number" name="mqtt_port" min="1" max="65535" value=")=====";
-const char HTML_SETTINGS_MQTT_USER[] PROGMEM = R"=====(<input type="text" name="mqtt_user" value=")=====";
-const char HTML_SETTINGS_MQTT_PASS[] PROGMEM = R"=====(<input type="text" name="mqtt_pass" value=")=====";
-const char HTML_SETTINGS_MQTT_CLIENT_ID[] PROGMEM = R"=====(<input type="text" name="client_id" value=")=====";
+const char HTML_SETTINGS_INPUT_MQTT_SERVER[] PROGMEM = R"=====(<input class="w-100" id="mqtt_ip" type="text" name="mqtt_ip" value=")=====";
+const char HTML_SETTINGS_INPUT_MQTT_PORT[] PROGMEM = R"=====(<input class="w-100"  id="mqtt_port"  type="number" name="mqtt_port" min="1" max="65535" value=")=====";
+const char HTML_SETTINGS_MQTT_USER[] PROGMEM = R"=====(<input class="w-100" id="mqtt_user" type="text" name="mqtt_user" value=")=====";
+const char HTML_SETTINGS_MQTT_PASS[] PROGMEM = R"=====(<input class="w-100" id="mqtt_pass" type="text" name="mqtt_pass" value=")=====";
+const char HTML_SETTINGS_MQTT_CLIENT_ID[] PROGMEM = R"=====(<input class="w-100" id="client_id" type="text" name="client_id" value=")=====";
 
 const char HTML_SETTINGS_HTML_END[] PROGMEM = R"=====(
-      <label>New login:</label>
-      <input type="text" name="auth_user"  >
+      </fieldset>
+      <fieldset>
+        <legend>Web interface settings</legend>
+        <label for="auth_user">New login:</label>
+        <input  class="w-100"  id="auth_user" type="text" name="auth_user"  >
 
-      <label>New password:</label>
-      <input type="text" name="auth_pass" >
-
-      <button class="btn" type="submit">💾 Save</button>
+        <label for="auth_pass">New password:</label>
+        <input class="w-100"  id="auth_pass" type="text" name="auth_pass" >
+      </fieldset>
+      <button class="w-100 btn" class="btn"  type="submit">💾 Save</button>
     </form>
 
     <div id="status" style="margin-top:20px;"></div>
@@ -233,57 +242,57 @@ const char MQTT_CONN_STATUS_JSON[] PROGMEM = R"({"mqtt":"%s"})";
 class HttpConfigServer
 {
 private:
-    ESP8266WebServer server;
-    char authUser[32] = {0};
-    char authPass[32] = {0};
+  ESP8266WebServer server;
+  char authUser[32] = {0};
+  char authPass[32] = {0};
 
-    SoftwareSerial *loraSerial = nullptr;
-    bool isSerialDebug = false;
-    bool mqttConnected = false;
+  SoftwareSerial *loraSerial = nullptr;
+  bool isSerialDebug = false;
+  bool mqttConnected = false;
 
-    std::function<void(const char *, const char *, const char *, const char *,
-                       const char *, const char *, const char *)>
-        saveCallback;
-    std::function<void()> resetCredentialsCallback;
+  std::function<void(const char *, const char *, const char *, const char *,
+                     const char *, const char *, const char *)>
+      saveCallback;
+  std::function<void()> resetCredentialsCallback;
 
-    char _mqtt_ip[64] = {0};
-    uint16_t _mqtt_port = 1883;
+  char _mqtt_ip[64] = {0};
+  uint16_t _mqtt_port = 1883;
 
-    char _mqtt_user[64] = {0};
-    char _mqtt_pass[64] = {0};
-    char _client_id[64] = {0};
+  char _mqtt_user[64] = {0};
+  char _mqtt_pass[64] = {0};
+  char _client_id[64] = {0};
 
-    void handleRoot();
-    void handleSendCommand();
-    void handleConfigPage();
-    void handleSaveConfig();
-    void handleStatus();
-    void handleNotFound();
-    bool isAuthorized();
-    void sendChunk(const char *data);
+  void handleRoot();
+  void handleSendCommand();
+  void handleConfigPage();
+  void handleSaveConfig();
+  void handleStatus();
+  void handleNotFound();
+  bool isAuthorized();
+  void sendChunk(const char *data);
 
 public:
-    HttpConfigServer(int port = 80,
-                     std::function<void(const char *, const char *, const char *, const char *,
-                                        const char *, const char *, const char *)>
-                         credCb = nullptr,
-                     std::function<void()> rstCredCb = nullptr);
+  HttpConfigServer(int port = 80,
+                   std::function<void(const char *, const char *, const char *, const char *,
+                                      const char *, const char *, const char *)>
+                       credCb = nullptr,
+                   std::function<void()> rstCredCb = nullptr);
 
-    void begin();
-    void loop();
+  void begin();
+  void loop();
 
-    // MQTT - state setter
-    void setMqttConnected(bool state);
+  // MQTT - state setter
+  void setMqttConnected(bool state);
 
-    void setAuth(const char *user, const char *pwd);
+  void setAuth(const char *user, const char *pwd);
 
-    void setLoraSerial(SoftwareSerial *serial);
+  void setLoraSerial(SoftwareSerial *serial);
 
-    void setIsSerialDebug(bool isDebug);
+  void setIsSerialDebug(bool isDebug);
 
-    void setMQTT(const char *mqtt_ip, uint16_t mqtt_port,
-                 const char *mqtt_user, const char *mqtt_pass,
-                 const char *client_id);
+  void setMQTT(const char *mqtt_ip, uint16_t mqtt_port,
+               const char *mqtt_user, const char *mqtt_pass,
+               const char *client_id);
 };
 
 #endif // HTTP_CONFIG_SERVER_H
