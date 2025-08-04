@@ -1,8 +1,6 @@
 #ifndef ESP8266_WITH_XY_L30A_H
 #define ESP8266_WITH_XY_L30A_H
 
-void handleSendCommand();
-void handleRoot();
 void loraReader();
 void handleXYResponse(const char *line);
 void callback(char *topic, byte *payload, unsigned int length);
@@ -14,17 +12,14 @@ void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
                         const char *auth_user, const char *auth_pass);
 
 void loadAuthFromEEPROM();
-void saveWiFiConfig(const String &ssid, const String &pass);
-void saveStringToEEPROM(int addr, const String &value);
-void readStringFromEEPROM(int addr, char *buffer, size_t maxLen);
+
 void connectToAP(const char *ssid, const char *pass, bool isCheckAttempt);
-void debugEEPROM(int start, int len);
+
 void blink(int _delay, int num);
 void resetWiFiCredentials();
 void handleMQTTCommand(const char *action, const char *value);
 void publishStatus();
-void waitForStableVcc();
-float readVcc();
+
 void debugHeap(const char *topic);
 
 #endif

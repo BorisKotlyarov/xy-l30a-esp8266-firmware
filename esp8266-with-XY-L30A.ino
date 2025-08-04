@@ -4,17 +4,20 @@
 #include <SoftwareSerial.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <EEPROM.h>
 #include <user_interface.h>
 #include "XYParser.h"
 #include "WifiConnectionManager.h"
 #include "config.h"
 #include "HttpConfigServer.h"
+#include "EEPROMConfigManager.h"
 
-#define IS_SERIAL_DEBUG true // включён режим отладки, UART (if==true:  loraSerial НЕ инициализируется)
+// loraSerial (UART for XY-L10A/XY-L30A),
+//(true:  loraSerial do not start. (Serial.print work fine)
+// false:  Serial.print  do not work
+#define IS_SERIAL_DEBUG true
 
 WiFiConnectionManager wifiManager("XY-LXXA-Config", IPAddress(192, 168, 1, 1));
-// UART для XY-L10A/XY-L30A
+// UART for XY-L10A/XY-L30A
 SoftwareSerial loraSerial(3, 1); // RX = GPIO3, TX = GPIO1
 HttpConfigServer configServer(80, saveConfigToEEPROM, resetWiFiCredentials);
 
@@ -32,104 +35,74 @@ char authPass[32] = {0};
 
 uint16_t MQTT_PORT = 1883;
 
-// Прототипы
-// prototypes.h
-
 unsigned long lastMqttAttempt = 0;
 const unsigned long mqttRetryInterval = 5000; // в мс
 unsigned int WifiattemptReconnect = 0;
 unsigned int MAX_ATTEMPT_TO_RECONNECT = 10; // arter that device will reboot
 
-const int EEPROM_SIZE = 512;
-
-const int OFFSET_WIFI_SSID = 0;
-const int OFFSET_WIFI_PASS = 64;
-const int OFFSET_MQTT_SERVER = 128;
-const int OFFSET_MQTT_PORT = 192;
-const int OFFSET_MQTT_USER = 200;
-const int OFFSET_MQTT_PASS = 264;
-const int OFFSET_MQTT_CLIENT_ID = 328;
-const int OFFSET_AUTH_USER = 448;
-const int OFFSET_AUTH_PASS = 480;
+EEPROMConfigManager eeprom;
 
 void setup()
 {
-  // debugHeap("begin setup");
+
   Serial.begin(115200);
   delay(1000);
 
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.println(PSTR("=== Let's start ==="));
+  delay(5000);
 
-  EEPROM.begin(EEPROM_SIZE);
-
-  // Чтение конфигурации
-  readStringFromEEPROM(OFFSET_WIFI_SSID, WIFI_SSID, sizeof(WIFI_SSID));
-  readStringFromEEPROM(OFFSET_WIFI_PASS, WIFI_PASSWORD, sizeof(WIFI_PASSWORD));
-  loadAuthFromEEPROM();
+  eeprom.begin();
+  eeprom.loadWiFiConfig(WIFI_SSID, WIFI_PASSWORD);
+  loadAuthFromEepromOrUseDefault();
 
   if (strlen(WIFI_SSID) == 0)
   {
-    Serial.println("SSID not found. Starting Wireless Connection Manager");
     initLogin();
   }
   else
   {
-    Serial.println("Begin connect to wifi before connectToAP");
     connectToAP(WIFI_SSID, WIFI_PASSWORD, true);
-    Serial.println("After connectToAP");
-    delay(100);
   }
 
-  Serial.println("Before configServer.setIsSerialDebug");
-  delay(100);
   configServer.setIsSerialDebug(IS_SERIAL_DEBUG);
-  Serial.println("after configServer.setIsSerialDebug before condition");
-  delay(100);
 
   if (!IS_SERIAL_DEBUG)
   {
-    Serial.print(PSTR("loraSerial turn on"));
-    delay(100);
     loraSerial.begin(9600); // UART for XY-L10A/XY-L30A is active if NOT Serial Debug
-    Serial.print(PSTR("loraSerial begin"));
-    delay(3000);
     configServer.setLoraSerial(&loraSerial);
-    Serial.print(PSTR("after  configServer.setLoraSerial"));
-    delay(100);
   }
 
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("\nWi-Fi подключен");
-    delay(100);
-    Serial.print("IP ESP: ");
-    Serial.println(WiFi.localIP());
-    delay(100);
   }
   else
   {
     Serial.println("\nWi-Fi не удалось подключиться");
     delay(100);
-    // Можешь решать: перезапустить, ждать в loop и пытаться повторно
     ESP.restart();
     return;
   }
 
-  loadConfigFromEEPROM();
+  // Load config for
+  eeprom.loadMQTTConfig(MQTT_SERVER, &MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_CLIENT_ID);
 
+  // setup MQTTConfig to http server (for edit)
+  configServer.setMQTT(
+      MQTT_SERVER,
+      MQTT_PORT,
+      MQTT_USER,
+      MQTT_PASS,
+      MQTT_CLIENT_ID);
+
+  // start the http server
   configServer.begin();
-
-  Serial.print("MQTT IP: ");
-  Serial.println(MQTT_SERVER);
 
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(callback);
-  Serial.print("MQTT PORT: ");
-  Serial.println(MQTT_PORT);
 
   connectMQTT(true);
-  // debugHeap("after setup");
 }
 
 void loop()
@@ -137,6 +110,7 @@ void loop()
 
   if (!wifiConnectionCheckAndRenew())
   {
+    // after bad MAX_ATTEMPT_TO_RECONNECT ESP8266 will restart
     if (WifiattemptReconnect >= MAX_ATTEMPT_TO_RECONNECT)
     {
       delay(2000);
@@ -154,13 +128,14 @@ void loop()
 
   if (!IS_SERIAL_DEBUG)
   {
+    // read data from XY-L10A/XY-L30A UART
     loraReader();
   }
 
   if (!mqttClient.connected())
   {
-    connectMQTT(false);
     configServer.setMqttConnected(false);
+    connectMQTT(false);
   }
   else
   {
@@ -170,7 +145,7 @@ void loop()
   }
 }
 
-/** Optimazed */
+// Each 5 sec send the status to MQTT server
 void publishStatus()
 {
   static unsigned long lastMqttStatusTime = 0;
@@ -181,7 +156,7 @@ void publishStatus()
     return;
   lastMqttStatusTime = now;
 
-  // Формируем uptime
+  // create uptime
   unsigned long uptimeSec = millis() / 1000;
   int hrs = uptimeSec / 3600;
   int min = (uptimeSec % 3600) / 60;
@@ -190,7 +165,7 @@ void publishStatus()
   char uptimeStr[12];
   snprintf_P(uptimeStr, sizeof(uptimeStr), PSTR("%02d:%02d:%02d"), hrs, min, sec);
 
-  // Формируем IP
+  // format IP
   const IPAddress &ip = WiFi.localIP();
   char ipStr[15];
   snprintf_P(ipStr, sizeof(ipStr), PSTR("%u.%u.%u.%u"),
@@ -209,27 +184,17 @@ void publishStatus()
   mqttClient.publish("device/status", jsonOut, MQTT_RETAIN);
 }
 
+// reset wifi ssid and wifi password
 void resetWiFiCredentials()
 {
-  Serial.println("Сброс Wi-Fi конфигурации...");
 
-  // Очистим EEPROM области, где хранятся SSID и пароль
-  for (int i = OFFSET_WIFI_SSID; i < OFFSET_WIFI_PASS + 64; i++)
-  {
-    EEPROM.write(i, 0); // Обнуляем байты
-  }
-  EEPROM.commit();
-
-  // Отключаемся от сети и сбрасываем авто-подключение
-  WiFi.disconnect(true); // true = сброс и сохранения
+  eeprom.resetWiFiCredentials();
+  WiFi.disconnect(true);
   delay(100);
 
   WiFi.mode(WIFI_OFF);
-  delay(100);
+  delay(1000);
 
-  Serial.println("Wi-Fi конфигурация сброшена");
-
-  // Перезагрузим для применения
   ESP.restart();
 }
 
@@ -244,6 +209,7 @@ void blink(int _delay = 500, int num = 1)
   }
 }
 
+// check the wifi connection if it is lose function will try to reconnect
 bool wifiConnectionCheckAndRenew()
 {
   static unsigned long lastWiFiRetry = 0;
@@ -254,7 +220,7 @@ bool wifiConnectionCheckAndRenew()
     unsigned long _now = millis();
     if (_now - lastWiFiRetry > wifiRetryInterval)
     {
-      Serial.println("🔄 Wi-Fi потерян. Переподключение...");
+      // Wi-Fi is lose try to reconnect
       WiFi.reconnect();
       lastWiFiRetry = _now;
       blink(50);
@@ -265,53 +231,9 @@ bool wifiConnectionCheckAndRenew()
   return true;
 }
 
-void saveStringToEEPROM(int addr, const String &value)
-{
-
-  Serial.print("💾 Save to EEPROM @");
-  Serial.print(addr);
-  Serial.print(": [");
-  Serial.print(value);
-  Serial.println("]");
-
-  for (int i = 0; i < value.length(); ++i)
-  {
-    EEPROM.write(addr + i, value[i]);
-  }
-  EEPROM.write(addr + value.length(), '\0'); // завершающий 0
-  EEPROM.commit();
-}
-
-void readStringFromEEPROM(int addr, char *buffer, size_t maxLen)
-{
-  int i = 0;
-  char ch;
-  while ((ch = EEPROM.read(addr + i)) != '\0' && i < maxLen - 1)
-  {
-    buffer[i++] = ch;
-  }
-  buffer[i] = '\0';
-}
-
-// Запись char[] в EEPROM
-void saveStringToEEPROM(int addr, const char *value)
-{
-  Serial.print("💾 Save to EEPROM @");
-  Serial.print(addr);
-  Serial.print(": [");
-  Serial.print(value);
-  Serial.println("]");
-
-  int i = 0;
-  while (value[i] != '\0' && i < 63)
-  {
-    EEPROM.write(addr + i, value[i]);
-    i++;
-  }
-  EEPROM.write(addr + i, '\0');
-  EEPROM.commit();
-}
-
+// start wifi (as WIFI_AP mode) and
+// start local http server for provide posability
+// to add credentials for wifi router
 void initLogin()
 {
   while (true)
@@ -320,15 +242,16 @@ void initLogin()
     byte status = wifiManager.getStatus();
 
     if (status == 1)
-    { // Данные получены
+    { // has data (SSID & password), try to coonect
       const WiFiConnectionManager::Config &config = wifiManager.getConfig();
       connectToAP(config.SSID, config.password, true);
 
       if (WiFi.status() == WL_CONNECTED)
       {
-        saveWiFiConfig(config.SSID, config.password);
+        // if data (SSID & password) is correct. then save it to eeprom
+        eeprom.saveWiFiConfig(config.SSID, config.password);
         Serial.println("Wi-Fi saved!");
-        break; // Выход из цикла
+        break;
       }
       else
       {
@@ -336,7 +259,7 @@ void initLogin()
       }
     }
     else if (status == 4)
-    { // Выход без сохранения
+    {
       Serial.println("Setup canceled.");
       break;
     }
@@ -350,7 +273,7 @@ void connectToAP(const char *ssid, const char *pass, bool isCheckAttempt = false
     return;
   }
   int tryCount = 0;
-  int ATTEMPT = 100; // each ATTEMPT == 1000ms
+  int ATTEMPT = 1000; // each ATTEMPT == 1000ms
 
   // Connect to Wi-Fi
   WiFi.mode(WIFI_STA);
@@ -371,13 +294,13 @@ void connectToAP(const char *ssid, const char *pass, bool isCheckAttempt = false
       tryCount++;
       if (status == WL_CONNECT_FAILED || tryCount >= ATTEMPT)
       {
-
         return;
       }
     }
     delay(1000);
   }
 
+  // get correct time
   configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   time_t now = time(nullptr);
@@ -393,18 +316,9 @@ void connectToAP(const char *ssid, const char *pass, bool isCheckAttempt = false
   Serial.println(asctime(&timeinfo));
 }
 
-void saveWiFiConfig(const String &ssid, const String &pass)
+void loadAuthFromEepromOrUseDefault()
 {
-  saveStringToEEPROM(OFFSET_WIFI_SSID, ssid);
-  saveStringToEEPROM(OFFSET_WIFI_PASS, pass);
-}
-
-void loadAuthFromEEPROM()
-{
-  EEPROM.begin(512);
-
-  readStringFromEEPROM(OFFSET_AUTH_USER, authUser, sizeof(authUser));
-  readStringFromEEPROM(OFFSET_AUTH_PASS, authPass, sizeof(authPass));
+  eeprom.loadAuth(authUser, authPass);
 
   if (strlen(authUser) == 0 || !isAscii(authUser[0]))
   {
@@ -415,38 +329,7 @@ void loadAuthFromEEPROM()
     strncpy(authPass, DEFAULT_PASS, sizeof(authPass));
   }
 
-  Serial.println(F("🔐 Авторизация:"));
-  Serial.print(F("User: ["));
-  Serial.print(authUser);
-  Serial.println(F("]"));
-
-  // Временное решение для совместимости:
   configServer.setAuth(authUser, authPass);
-}
-
-void loadConfigFromEEPROM()
-{
-  EEPROM.begin(512);
-
-  readStringFromEEPROM(OFFSET_WIFI_SSID, WIFI_SSID, sizeof(WIFI_SSID));
-  readStringFromEEPROM(OFFSET_WIFI_PASS, WIFI_PASSWORD, sizeof(WIFI_PASSWORD));
-  readStringFromEEPROM(OFFSET_MQTT_SERVER, MQTT_SERVER, sizeof(MQTT_SERVER));
-
-  char portStr[6] = {0};
-  readStringFromEEPROM(OFFSET_MQTT_PORT, portStr, sizeof(portStr));
-  MQTT_PORT = atoi(portStr);
-
-  readStringFromEEPROM(OFFSET_MQTT_USER, MQTT_USER, sizeof(MQTT_USER));
-  readStringFromEEPROM(OFFSET_MQTT_PASS, MQTT_PASS, sizeof(MQTT_PASS));
-  readStringFromEEPROM(OFFSET_MQTT_CLIENT_ID, MQTT_CLIENT_ID, sizeof(MQTT_CLIENT_ID));
-
-  // Временное решение для совместимости:
-  configServer.setMQTT(
-      MQTT_SERVER,
-      MQTT_PORT,
-      MQTT_USER,
-      MQTT_PASS,
-      MQTT_CLIENT_ID);
 }
 
 void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
@@ -455,38 +338,19 @@ void saveConfigToEEPROM(const char *mqtt_ip, const char *mqtt_port,
                         const char *auth_user, const char *auth_pass)
 {
 
-  saveStringToEEPROM(OFFSET_MQTT_SERVER, mqtt_ip);
-  saveStringToEEPROM(OFFSET_MQTT_PORT, mqtt_port);
-  saveStringToEEPROM(OFFSET_MQTT_USER, user);
-  saveStringToEEPROM(OFFSET_MQTT_PASS, mqtt_pass);
-  saveStringToEEPROM(OFFSET_MQTT_CLIENT_ID, client_id);
-
-  if (auth_user && strlen(auth_user) > 0 && isAscii(auth_user[0]))
-  {
-    saveStringToEEPROM(OFFSET_AUTH_USER, auth_user);
-    Serial.println("Will be save to EEPROM with auth_user");
-  }
-
-  if (auth_pass && strlen(auth_pass) > 0 && isAscii(auth_pass[0]))
-  {
-    saveStringToEEPROM(OFFSET_AUTH_PASS, auth_pass);
-    Serial.println("Will be save to EEPROM with auth_pass");
-  }
-
-  EEPROM.commit();
-  Serial.println("EEPROM saved");
+  uint16_t port = atoi(mqtt_port);
+  eeprom.saveMQTTConfig(mqtt_ip, port, user, mqtt_pass, client_id);
+  eeprom.saveAuth(auth_user, auth_pass);
 }
 
-/** Optimazed */
 void connectMQTT(bool force = false)
 {
-  // Буферы для PROGMEM строк
+
   char willTopic[32];
   char commandTopic[32];
   strncpy_P(willTopic, STATUS_TOPIC, sizeof(willTopic));
   strncpy_P(commandTopic, COMMAND_TOPIC, sizeof(commandTopic));
 
-  // Проверка условий
   if (!force && (strlen(MQTT_SERVER) == 0 ||
                  WiFi.status() != WL_CONNECTED ||
                  millis() - lastMqttAttempt < mqttRetryInterval))
@@ -515,36 +379,32 @@ void connectMQTT(bool force = false)
           MQTT_RETAIN,
           willPayload))
   {
-    Serial.println(F("✅ MQTT Connected"));
+    // MQTT Connected
     configServer.setMqttConnected(true);
 
-    // Подписка с проверкой
-    if (!mqttClient.subscribe(commandTopic))
-    {
-      Serial.println(F("⚠️ Subscribe failed"));
-    }
+    // subscribe to topic
+    mqttClient.subscribe(commandTopic)
   }
   else
   {
+    // MQTT ERROR:
     Serial.print(F("❌ MQTT ERROR: "));
     Serial.println(mqttClient.state());
     configServer.setMqttConnected(false);
   }
-  // debugHeap("after connectMQTT");
 }
-/** Optimazed */
+
 void callback(char *topic, byte *payload, unsigned int length)
 {
-  // Буферы (в стеке)
   char logBuffer[128];   // Для готовых сообщений
   char formatBuffer[64]; // Для шаблонов из PROGMEM
 
-  // 1. Логирование топика
+  // 1. toic logging
   strncpy_P(formatBuffer, MSG_TOPIC, sizeof(formatBuffer));
   snprintf(logBuffer, sizeof(logBuffer), formatBuffer, topic);
   Serial.println(logBuffer);
 
-  // 2. Парсинг JSON
+  // 2. JSON parse
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, payload, length);
 
@@ -556,12 +416,12 @@ void callback(char *topic, byte *payload, unsigned int length)
     return;
   }
 
-  // 3. Извлечение данных
+  // 3. data extract
   const char *action = doc["action"];
   const char *value = doc["value"];
   const char *device_id = doc["receiver"];
 
-  // 4. Проверка device_id
+  // 4. check device_id
   strncpy_P(formatBuffer, MSG_DEVICE_ID, sizeof(formatBuffer));
   snprintf(logBuffer, sizeof(logBuffer), formatBuffer,
            device_id ? device_id : "null", MQTT_CLIENT_ID);
@@ -569,18 +429,17 @@ void callback(char *topic, byte *payload, unsigned int length)
 
   if (device_id && strcmp(device_id, MQTT_CLIENT_ID) == 0)
   {
-    // 5. Логирование команды
+    // 5. log command
     strncpy_P(formatBuffer, MSG_MQTT_CMD, sizeof(formatBuffer));
     snprintf(logBuffer, sizeof(logBuffer), formatBuffer,
              action ? action : "null", value ? value : "null");
     Serial.println(logBuffer);
 
-    // 6. Обработка команды
+    // 6. handle command
     handleMQTTCommand(action, value);
   }
-  // debugHeap("after callback");
 }
-/** Optimazed */
+
 void handleMQTTCommand(const char *action, const char *value)
 {
   if (!action)
@@ -611,9 +470,8 @@ void handleMQTTCommand(const char *action, const char *value)
     snprintf(logBuffer, sizeof(logBuffer), logBuffer, action);
     Serial.println(logBuffer);
   }
-  // debugHeap("after handleMQTTCommand");
 }
-/** DO NOT TOUCH !!! */
+
 void loraReader()
 {
   static char loraBuffer[64];
@@ -641,7 +499,6 @@ void loraReader()
   }
 }
 
-/** Optimazed */
 void handleXYResponse(const char *rawLine)
 {
 
@@ -657,7 +514,7 @@ void handleXYResponse(const char *rawLine)
 
   XYPacket packet;
 
-  // 🧠 Попытка распарсить как data
+  // data parsing
   if (XYParser::parse(rawLine, packet))
   {
 
@@ -678,11 +535,10 @@ void handleXYResponse(const char *rawLine)
     strncpy_P(topic, TOPIC_XY_DATA, sizeof(topic));
     mqttClient.publish(topic, jsonBuffer);
 
-    // Serial.println(jsonBuffer);
     return;
   }
 
-  // 🧠 Альтернатива — конфигурационные параметры
+  // config parsing
   StaticJsonDocument<256> doc;
   doc["type"] = JsonTypeConfig;
   doc["device_id"] = MQTT_CLIENT_ID;
