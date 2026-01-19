@@ -1,18 +1,21 @@
 # ESP8266 with XY-L30A LoRa Gateway
 
-[Project logic](BLOCK_SCHEMA.md)
-
 ## 📑 Table of Contents
 
-1. [📌 Overview](#%F0%9F%93%8C-overview)
-2. [📋 Features](#%F0%9F%93%8B-features)
-3. [🛠 Hardware Requirements](#%F0%9F%9B%A0-hardware-requirements)
-4. [⚙️ Software Configuration](#%E2%9A%99%EF%B8%8F-software-configuration)
-5. [🔌 MQTT Topics](#%F0%9F%94%8C-mqtt-topics)
-6. [🎛 Commands (JSON Format)](#%F0%9F%8E%9B-commands-json-format)
-7. [📊 Data Flow](#%F0%9F%93%8A-data-flow)
-8. [⚠️ Troubleshooting](#%E2%9A%A0%EF%B8%8F-troubleshooting)
-9. [📄 License](#%F0%9F%93%84-license)
+0. [📌 Overview](#%F0%9F%93%8C-overview)
+1. [📋 Features](#%F0%9F%93%8B-features)
+2. [🛠 Hardware Requirements](#%F0%9F%9B%A0-hardware-requirements)
+3. [⚙️ Software Configuration](#%E2%9A%99%EF%B8%8F-software-configuration)
+4. [🔌 MQTT Topics](#%F0%9F%94%8C-mqtt-topics)
+5. [🎛 Commands (JSON Format)](#%F0%9F%8E%9B-commands-json-format)
+6. [📊 Data Flow](#%F0%9F%93%8A-data-flow)
+7. [🔗 Programmer Connection Diagram](#%F0%9F%94%97%20Programmer%20Connection%20Diagram)
+8. [🧩 Module Wiring Diagram](#%F0%9F%A7%A9%20Module%20Wiring%20Diagram)
+9. [⚠️ Troubleshooting](#%E2%9A%A0%EF%B8%8F-troubleshooting)
+10. [📄 License](#%F0%9F%93%84-license)
+11. [🤝 Contributing](#%F0%9F%A4%9D-contributing)
+
+Other pages: [Project logic](BLOCK_SCHEMA.md) | [Web Panel Access, Control, Conf., etc.](Web-Panel.md)
 
 ## 📌 Overview
 
@@ -21,14 +24,15 @@ This project implements an ESP8266-based gateway that:
 - Connects to WiFi (with fallback to AP configuration mode)
 - Interfaces with XY-L30A LoRa module via SoftwareSerial
 - Publishes sensor data to MQTT broker
-- Provides web configuration interface
+- Provides web configuration interface (see: [Web Panel Access, Control, Conf., etc.](Web-Panel.md))
+- Supports remote commands via build-in Web panel (see: [Web Panel Access, Control, Conf., etc.](Web-Panel.md))
 - Supports remote commands via MQTT
 
 ## 📋 Features
 
 - **Automatic WiFi Connection** with configuration portal fallback
 - **MQTT Integration** with Last Will testament
-- **Web Configuration** (HTTP server on port 80)
+- **Web Configuration** (HTTP server on port 80) read [About Web Panel](Web-Panel.md)
 - **LoRa Data Processing**:
   - Battery status parsing
   - Configuration parameter extraction
@@ -102,6 +106,38 @@ sequenceDiagram
     ESP->>LoRa: UART Commands
 ```
 
+## 🔗 Programmer Connection Diagram
+
+![](docs/assets/connect-to-programmer.png)
+
+Modules list:
+
+1.  Programmer CH340G
+1.  ESP8266 / ESP8266-01s
+1.  YP-8 (AMS1117) 3.3V
+
+## 🧩 Module Wiring Diagram
+
+### With constant power supply
+
+![](docs/assets/XY-LxxA_constant_power_supply.png)
+
+Modules list:
+
+1.  XY-L10A / XY-L30A
+1.  ESP8266 / ESP8266-01s
+1.  YP-8 (AMS1117) 3.3V
+
+### With Solar panel as power supply
+
+![](docs/assets/Schema_with_LM2596_solar_panel.png)
+
+Modules list:
+
+1.  XY-L10A / XY-L30A
+1.  ESP8266 / ESP8266-01s
+1.  LM2596 (DC-DC Step-Down Converter)
+
 ## ⚠️ Troubleshooting
 
 1. **Serial Debug Conflict**:
@@ -114,3 +150,27 @@ sequenceDiagram
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) file
+
+## 🤝 Contributing
+
+We welcome your improvements! To make changes:
+
+1. [**Fork** this repository](https://github.com/BorisKotlyarov/xy-l30a-esp8266-firmware/fork)
+2. **Create a branch** for your changes:
+   ```bash
+   git checkout -b fix/my-improvement
+   ```
+3. **Make your changes**, ensuring:
+   - Changes work on actual hardware
+   - Examples compile without errors
+4. **Commit your changes:**
+   ```bash
+   git commit -m "Fix: brief description"
+   ```
+5. **Push to your fork:**
+   ```bash
+   git push origin fix/my-improvement
+   ```
+6. **Create a Pull Request** with a description of your changes
+
+Thanks for your contribution! ✨
