@@ -2,18 +2,18 @@
 
 ## 📑 Table of Contents
 
-0. [📌 Overview](#%F0%9F%93%8C-overview)
-1. [📋 Features](#%F0%9F%93%8B-features)
-2. [🛠 Hardware Requirements](#%F0%9F%9B%A0-hardware-requirements)
-3. [⚙️ Software Configuration](#%E2%9A%99%EF%B8%8F-software-configuration)
-4. [🔌 MQTT Topics](#%F0%9F%94%8C-mqtt-topics)
-5. [🎛 Commands (JSON Format)](#%F0%9F%8E%9B-commands-json-format)
-6. [📊 Data Flow](#%F0%9F%93%8A-data-flow)
-7. [🔗 Programmer Connection Diagram](#%F0%9F%94%97%20Programmer%20Connection%20Diagram)
-8. [🧩 Module Wiring Diagram](#%F0%9F%A7%A9%20Module%20Wiring%20Diagram)
-9. [⚠️ Troubleshooting](#%E2%9A%A0%EF%B8%8F-troubleshooting)
-10. [📄 License](#%F0%9F%93%84-license)
-11. [🤝 Contributing](#%F0%9F%A4%9D-contributing)
+0. [📌 Overview](#-overview)
+1. [📋 Features](#-features)
+2. [🛠 Hardware Requirements](#-hardware-requirements)
+3. [⚙️ Software Configuration](#%EF%B8%8F-software-configuration)
+4. [🔌 MQTT Topics](#-mqtt-topics)
+5. [🎛 Commands (JSON Format)](#-commands-json-format)
+6. [📊 Data Flow](#-data-flow)
+7. [🔗 Programmer Connection Diagram](#-programmer-connection-diagram)
+8. [🧩 Module Wiring Diagram](#-module-wiring-diagram)
+9. [⚠️ Troubleshooting](#%EF%B8%8F-troubleshooting)
+10. [📄 License](#-license)
+11. [🤝 Contributing](#-contributing)
 
 Other pages: [Project logic](BLOCK_SCHEMA.md) | [Web Panel Access, Control, Conf., etc.](Web-Panel.md)
 
