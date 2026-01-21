@@ -15,7 +15,7 @@
 10. [📄 License](#-license)
 11. [🤝 Contributing](#-contributing)
 
-Other pages: [Project logic](BLOCK_SCHEMA.md) | [Web Panel Access, Control, Conf., etc.](docs/Web-Panel.md)
+Other pages: [Project logic](BLOCK_SCHEMA.md) | [Web Panel Access, Control, Conf., etc.](.docs/Web-Panel.md)
 
 ## 📌 Overview
 
@@ -24,15 +24,15 @@ This project implements an ESP8266-based gateway that:
 - Connects to WiFi (with fallback to AP configuration mode)
 - Interfaces with XY-L30A LoRa module via SoftwareSerial
 - Publishes sensor data to MQTT broker
-- Provides web configuration interface (see: [Web Panel Access, Control, Conf., etc.](docs/Web-Panel.md))
-- Supports remote commands via build-in Web panel (see: [Web Panel Access, Control, Conf., etc.](docs/Web-Panel.md))
+- Provides web configuration interface (see: [Web Panel Access, Control, Conf., etc.](.docs/Web-Panel.md))
+- Supports remote commands via build-in Web panel (see: [Web Panel Access, Control, Conf., etc.](.docs/Web-Panel.md))
 - Supports remote commands via MQTT
 
 ## 📋 Features
 
 - **Automatic WiFi Connection** with configuration portal fallback
 - **MQTT Integration** with Last Will testament
-- **Web Configuration** (HTTP server on port 80) read [About Web Panel](docs/Web-Panel.md)
+- **Web Configuration** (HTTP server on port 80) read [About Web Panel](.docs/Web-Panel.md)
 - **LoRa Data Processing**:
   - Battery status parsing
   - Configuration parameter extraction
@@ -108,7 +108,7 @@ sequenceDiagram
 
 ## 🔗 Programmer Connection Diagram
 
-![](docs/assets/connect-to-programmer.png)
+![](.docs/assets/connect-to-programmer.png)
 
 Modules list:
 
@@ -120,7 +120,7 @@ Modules list:
 
 ### With constant power supply
 
-![](docs/assets/XY-LxxA_constant_power_supply.png)
+![](.docs/assets/XY-LxxA_constant_power_supply.png)
 
 Modules list:
 
@@ -130,7 +130,7 @@ Modules list:
 
 ### With Solar panel as power supply
 
-![](docs/assets/Schema_with_LM2596_solar_panel.png)
+![](.docs/assets/esp8266_xy-l30a_with_LM2596_solar_panel.png)
 
 Modules list:
 
