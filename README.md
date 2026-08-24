@@ -1,4 +1,4 @@
-# ESP8266 with XY-L30A LoRa Gateway
+# ESP8266 with XY-L30A
 
 ## 📑 Table of Contents
 
