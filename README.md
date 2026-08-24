@@ -71,7 +71,7 @@ This project implements an ESP8266-based gateway that:
 | ---------------- | --------- | ----------------------- |
 | `device/status`  | Out       | Device heartbeat (JSON) |
 | `device/command` | In        | Control commands        |
-| `lora/data`      | Out       | Parsed LoRa data        |
+| `lora/data`      | Out       | Parsed data             |
 | `lora/config`    | Out       | Module configuration    |
 | `lora/raw`       | Out       | Unprocessed UART data   |
 
@@ -89,7 +89,7 @@ Supported actions:
 
 - `restart` - Reboot device
 - `blink` - Blink LED (value = count)
-- `uart_send` - Send raw data to LoRa module
+- `uart_send` - Send raw data to XY-L30A module
 - `reset_wifi` - Clear WiFi credentials
 
 ## 📊 Data Flow
@@ -141,7 +141,7 @@ Modules list:
 ## ⚠️ Troubleshooting
 
 1. **Serial Debug Conflict**:
-   - Set `IS_SERIAL_DEBUG` to `false` for LoRa UART operation
+   - Set `IS_SERIAL_DEBUG` to `false` for UART operation
 2. **WiFi Connection Issues**:
    - Reset Wifi credentials in module web interface
 3. **MQTT Problems**:
