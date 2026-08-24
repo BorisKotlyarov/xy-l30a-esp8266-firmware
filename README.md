@@ -22,7 +22,7 @@ Other pages: [Project logic](BLOCK_SCHEMA.md) | [Web Panel Access, Control, Conf
 This project implements an ESP8266-based gateway that:
 
 - Connects to WiFi (with fallback to AP configuration mode)
-- Interfaces with XY-L30A LoRa module via SoftwareSerial
+- Interfaces with XY-L30A via SoftwareSerial
 - Publishes sensor data to MQTT broker
 - Provides web configuration interface (see: [Web Panel Access, Control, Conf., etc.](.docs/Web-Panel.md))
 - Supports remote commands via build-in Web panel (see: [Web Panel Access, Control, Conf., etc.](.docs/Web-Panel.md))
@@ -33,7 +33,7 @@ This project implements an ESP8266-based gateway that:
 - **Automatic WiFi Connection** with configuration portal fallback
 - **MQTT Integration** with Last Will testament
 - **Web Configuration** (HTTP server on port 80) read [About Web Panel](.docs/Web-Panel.md)
-- **LoRa Data Processing**:
+- **Data Processing**:
   - Battery status parsing
   - Configuration parameter extraction
   - Raw data forwarding
