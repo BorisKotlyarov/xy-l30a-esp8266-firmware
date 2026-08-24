@@ -48,7 +48,7 @@ This project implements an ESP8266-based gateway that:
 | Component   | Specification        |
 | ----------- | -------------------- |
 | ESP8266     | NodeMCU or similar   |
-| LoRa Module | XY-L30A or XY-L10A   |
+| Module      | XY-L30A or XY-L10A   |
 | Connections | RX: GPIO3, TX: GPIO1 |
 
 ## ⚙️ Software Configuration
